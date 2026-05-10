@@ -41,15 +41,15 @@ export const login = async (req, res, next) => {
     res.json({
       success: true,
       token,
-      user: {
-        id: user.id,
-        employeeId: user.employee_id,
-        email: user.email,
-        firstName: user.first_name,
-        lastName: user.last_name,
-        designation: user.designation,
-        privilege: user.privilege,
-      },
+      id: user.id,
+      employeeId: user.employee_id,
+      email: user.email,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      designation: user.designation,
+      privilege: user.privilege,
+      phone: user.phone,
+      gender: user.gender,
     });
   } catch (err) {
     next(err);
@@ -79,24 +79,18 @@ export const register = async (req, res, next) => {
       );
     }
 
-    const existing = await pool.query(
-      "SELECT id FROM users WHERE email=$1",
-      [email],
-    );
+    const existing = await pool.query("SELECT id FROM users WHERE email=$1", [
+      email,
+    ]);
     if (existing.rows.length > 0) {
-      return next(
-        new AppError(
-          "A user with that email already exists.",
-          409,
-        ),
-      );
+      return next(new AppError("A user with that email already exists.", 409));
     }
 
     // Auto-generate employee_id: find the highest numeric suffix and increment
     const { rows: lastRows } = await pool.query(
       `SELECT employee_id FROM users
        ORDER BY CAST(SPLIT_PART(employee_id, '-', 2) AS INTEGER) DESC
-       LIMIT 1`
+       LIMIT 1`,
     );
     const lastNum = lastRows[0]
       ? parseInt(lastRows[0].employee_id.split("-")[1], 10)
@@ -131,11 +125,27 @@ export const register = async (req, res, next) => {
 export const getMe = async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, employee_id, email, first_name, last_name, gender, designation, privilege, phone, created_at
-     FROM users WHERE id = $1`,
+      `SELECT id, employee_id, email, first_name, last_name, gender, designation, privilege, phone
+       FROM users WHERE id = $1 AND is_active = TRUE`,
       [req.user.id],
     );
-    res.json({ success: true, user: rows[0] });
+
+    if (!rows[0]) return next(new AppError("User not found.", 404));
+
+    const user = rows[0];
+
+    res.json({
+      success: true,
+      id: user.id,
+      employeeId: user.employee_id,
+      email: user.email,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      gender: user.gender,
+      designation: user.designation,
+      privilege: user.privilege,
+      phone: user.phone,
+    });
   } catch (err) {
     next(err);
   }
