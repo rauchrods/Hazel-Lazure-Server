@@ -65,33 +65,43 @@ export const register = async (req, res, next) => {
       first_name,
       last_name,
       gender,
-      employee_id,
       designation,
       privilege,
       phone,
     } = req.body;
 
-    if (!email || !password || !first_name || !last_name || !employee_id) {
+    if (!email || !password || !first_name || !last_name) {
       return next(
         new AppError(
-          "Required fields: email, password, first_name, last_name, employee_id.",
+          "Required fields: email, password, first_name, last_name.",
           400,
         ),
       );
     }
 
     const existing = await pool.query(
-      "SELECT id FROM users WHERE email=$1 OR employee_id=$2",
-      [email, employee_id],
+      "SELECT id FROM users WHERE email=$1",
+      [email],
     );
     if (existing.rows.length > 0) {
       return next(
         new AppError(
-          "A user with that email or employee ID already exists.",
+          "A user with that email already exists.",
           409,
         ),
       );
     }
+
+    // Auto-generate employee_id: find the highest numeric suffix and increment
+    const { rows: lastRows } = await pool.query(
+      `SELECT employee_id FROM users
+       ORDER BY CAST(SPLIT_PART(employee_id, '-', 2) AS INTEGER) DESC
+       LIMIT 1`
+    );
+    const lastNum = lastRows[0]
+      ? parseInt(lastRows[0].employee_id.split("-")[1], 10)
+      : 0;
+    const employee_id = `hzl-${lastNum + 1}`;
 
     const hash = await bcrypt.hash(password, SALT_ROUNDS);
     const { rows } = await pool.query(
